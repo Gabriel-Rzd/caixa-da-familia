@@ -115,10 +115,32 @@ const QCATS=[
  ['restaurantes',/\b(restaurante|lanches?|lanchonete|pizzas?|hamburguer\w*|burger|sorvetes?|ifood|acai|bar|jantar fora|almoco fora|esfihas?|pastel|cafeteria)\b/],
  ['outros',/\b(padaria|carro|pecas?|oficina|mecanico|barbearia|cabelo|lava rapido|lavagem|estacionamento|uber|pedagio|presentes?)\b/],
  ['mercado-semana',/\b(mercado|supermercado|frango|carnes?|proteinas?|peixes?|ovos?|leite|pao|paes|frutas?|verduras?|legumes?|hortifruti|feira|sacolao|acougue|queijo|presunto|iogurtes?|banana|arroz|feijao)\b/]];
-const QSTOP=new Set(['no','na','nos','nas','de','do','da','dos','das','em','com','o','a','os','as','um','uma','gastei','paguei','comprei','recebi','foi','foram','reais','real','r','centavos','centavo','pix','debito','credito','cartao','dinheiro','especie','hoje','ontem','anteontem','e','pelo','pela','via','entrada','saida']);
+const QSTOP=new Set(['no','na','nos','nas','de','do','da','dos','das','em','com','o','a','os','as','um','uma','gastei','paguei','comprei','recebi','foi','foram','reais','real','r','centavos','centavo','pix','debito','credito','cartao','dinheiro','especie','hoje','ontem','anteontem','e','pelo','pela','via','entrada','saida','com','virgula']);
+const NUMW={zero:0,um:1,uma:1,dois:2,duas:2,tres:3,quatro:4,cinco:5,seis:6,sete:7,oito:8,nove:9,dez:10,onze:11,doze:12,treze:13,quatorze:14,catorze:14,quinze:15,dezesseis:16,dezessete:17,dezoito:18,dezenove:19,vinte:20,trinta:30,quarenta:40,cinquenta:50,sessenta:60,setenta:70,oitenta:80,noventa:90,cem:100,cento:100,duzentos:200,duzentas:200,trezentos:300,trezentas:300,quatrocentos:400,quatrocentas:400,quinhentos:500,quinhentas:500,seiscentos:600,setecentos:700,oitocentos:800,novecentos:900};
+function numerosPorExtenso(t){
+  t=t.replace(/(\d),(\d)/g,'$1\u0001$2').replace(/[,;:!?]/g,' ').replace(/\u0001/g,',');
+  const w=t.split(/\s+/).filter(Boolean),out=[];const cls=v=>v>=100?3:v>=20?2:1;
+  for(let i=0;i<w.length;){
+    if(NUMW[w[i]]==null&&w[i]!=='mil'){out.push(w[i]);i++;continue}
+    if((w[i]==='um'||w[i]==='uma')&&!/^(real|reais|mil|centavos?|e)$/.test(w[i+1]||'')){out.push(w[i]);i++;continue}
+    let total=0,cur=0,last=9;
+    while(i<w.length){
+      if(w[i]==='mil'){total+=(cur||1)*1000;cur=0;last=4;i++;if(w[i]==='e'&&NUMW[w[i+1]]!=null)i++;continue}
+      const v=NUMW[w[i]];if(v==null)break;
+      const c=cls(v);if(last!==9&&c>=last)break;
+      cur+=v;last=c;i++;
+      if(w[i]==='mil')continue;
+      if(w[i]==='e'&&NUMW[w[i+1]]!=null&&cls(NUMW[w[i+1]])<last){i++;continue}
+      break;
+    }
+    out.push(String(total+cur));
+  }
+  return out.join(' ');
+}
 function parseQuick(text){
-  const t=nrm(text);let amount=NaN,m;
-  if((m=t.match(/(\d+)\s*reais?\s*e\s*(\d{1,2})\s*centavos?/)))amount=+m[1]+(+m[2])/100;
+  const t=numerosPorExtenso(nrm(text));let amount=NaN,m;
+  if((m=t.match(/(\d+)\s*(?:reais?)?\s*(?:e|com|virgula)\s*(\d{1,2})\s*centavos?/))||(m=t.match(/(\d+)\s*reais?\s*(?:e|com)\s*(\d{1,2})(?!\d)/))||(m=t.match(/(\d+)\s*(?:com|virgula)\s*(\d{1,2})(?!\d)/))||(m=t.match(/^\D*?(\d+)\s+e\s+(\d{2})(?!\d)/)))amount=+m[1]+(+m[2])/100;
+  else if((m=t.match(/(\d+)\s*centavos?/))&&!/\d\s*(reais|real)\b/.test(t))amount=+m[1]/100;
   else if((m=t.match(/(\d{1,3}(?:\.\d{3})+|\d+)(?:[,.](\d{1,2}))?/)))amount=+(m[1].replace(/\./g,''))+(m[2]?+(m[2].length===1?m[2]+'0':m[2])/100:0);
   const isIn=/\b(recebi|recebido|recebemos|entrada|entrou|ganhei|reembolso|devolveu|devolveram|me pagou|me pagaram|pagou a parte|estorno|vendi|venda|salario|honorarios?|bico)\b/.test(t);
   let category=null;
@@ -128,7 +150,7 @@ function parseQuick(text){
   if(/\bdebito\b/.test(t))method='debito';else if(/\b(dinheiro|especie)\b/.test(t))method='dinheiro';else if(/\b(credito|cartao)\b/.test(t))method='cartao';
   let date=todayISO();const back=/\banteontem\b/.test(t)?2:/\bontem\b/.test(t)?1:0;
   if(back){const d=new Date(date+'T12:00:00');d.setDate(d.getDate()-back);date=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
-  const words=String(text||'').split(/\s+/).filter(w=>{const n=nrm(w).replace(/[^a-z0-9$]/g,'');return n&&!QSTOP.has(n)&&!/^r?\$?\d/.test(n)&&!/^r?\$$/.test(n)});
+  const words=String(text||'').split(/\s+/).filter(w=>{const n=nrm(w).replace(/[^a-z0-9$]/g,'');return n&&!QSTOP.has(n)&&!/^r?\$?\d/.test(n)&&!/^r?\$$/.test(n)&&NUMW[n]==null&&n!=='mil'});
   let desc=words.join(' ').replace(/^[,.;:\-\s]+|[,.;:\-\s]+$/g,'');
   if(desc)desc=desc.charAt(0).toUpperCase()+desc.slice(1);
   return{amount:r2(amount),type:isIn?'in':'out',category,method:isIn?null:method,date,desc};
@@ -380,14 +402,7 @@ function lancarPorTexto_(texto, quem) {
   gravar_([{ op: 'set', col: 'transactions', id: id, data: body }]);
   carregarEstado_(lerTudo_());
   let msg = (p.type === 'in' ? 'Entrada lançada: ' : 'Lançado: ') + fmt(p.amount) + ' em ' + catFalada_(p.category) + (p.method ? ', ' + FORMA_FALADA[p.method] : '') + '.';
-  if (p.method === 'cartao') msg += ' Atenção: foi no cartão de crédito.';
   if (semCategoria) msg += ' Não reconheci a categoria, então coloquei em ' + catFalada_(p.category) + '. Se precisar, corrija no app.';
-  if (p.type === 'out') {
-    const k = computeToday();
-    msg += k.restHoje >= 0 ? ' Hoje ainda dá para gastar ' + fmt(k.restHoje) + '.' : ' Você passou ' + fmt(-k.restHoje) + ' do limite de hoje.';
-  } else if (p.category !== 'reembolso' && p.category !== 'ajuste' && +S.config.dizimoPct) {
-    msg += ' O dízimo de ' + fmt(p.amount * S.config.dizimoPct / 100) + ' já entrou na lista.';
-  }
   return msg;
 }
 
