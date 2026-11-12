@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Caixa da Família</title>
 <meta name="theme-color" content="#1d6b57">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -151,6 +151,15 @@ details summary{cursor:pointer;color:var(--muted);font-size:.85rem;font-weight:5
 .tip b{color:var(--ink)}
 @media (prefers-reduced-motion: no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(30px);opacity:.6}to{transform:none;opacity:1}}}
 @media (max-width:380px){.hero .big{font-size:2.2rem}.edit-row{grid-template-columns:1fr 90px 56px 30px}}
+/* app: sem zoom e campos que cabem no quadro */
+html{touch-action:manipulation}
+input,select,textarea{font-size:16px!important}
+input[type=date],input[type=month]{-webkit-appearance:none;appearance:none;display:block;width:100%;max-width:100%;min-width:0;min-height:44px;text-align:left}
+input::-webkit-date-and-time-value{text-align:left}
+.grid2>*{min-width:0}
+.edit-row{grid-template-columns:minmax(0,1fr) 96px 56px 30px}
+.edit-row.inc{grid-template-columns:minmax(0,1fr) 96px 52px 30px}
+.edit-row.cat3{grid-template-columns:minmax(0,1fr) 110px 30px}
 </style>
 </head>
 <body>
@@ -339,7 +348,7 @@ function render(){
   $('#gear').textContent=tb==='ajustes'?'Fechar':'Ajustes';$('#gear').href=tb==='ajustes'?'#hoje':'#ajustes';
   syncLabel();
   const v=$('#view');
-  $('#fab').hidden=!(S.dbOk&&S.config)||S.readOnly;
+  $('#fab').hidden=!(S.dbOk&&S.config)||S.readOnly||tb==='ajustes';
   if(!CONN||S.authErr){v.innerHTML=vConectar();$('#fab').hidden=true;return}
   if(!S.config){v.innerHTML='<div class="card empty">'+(S.stale?'<h2>Não consegui buscar os dados ainda</h2><p>Confira sua conexão. A página tenta de novo sozinha.</p>':(S.loaded.config?'<h2>Ainda não há dados</h2><p>Rode a função instalar no Apps Script para criar os dados iniciais.</p>':'Carregando seus dados…'))+'</div>';return}
   const stale=(S.stale||S.offline)?'<div class="banner warn">Sem internet agora. Você está vendo os últimos dados salvos. O que lançar será enviado quando a conexão voltar.</div>':'';
@@ -772,6 +781,7 @@ function boot(){
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){flush();carregar()}});
   window.addEventListener('online',()=>{flush();carregar()});
   if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{})}
+  ['gesturestart','gesturechange'].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault(),{passive:false}));
 }
 boot();
 
