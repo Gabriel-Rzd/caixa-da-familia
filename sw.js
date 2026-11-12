@@ -1,6 +1,6 @@
 // Caixa da Família — guarda a "casca" do app para abrir mesmo sem internet.
 // Os dados nunca passam por aqui: eles vão direto para o Google Apps Script.
-const CACHE = 'caixa-v1';
+const CACHE = 'caixa-v2';
 const ARQUIVOS = ['./', './index.html', './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {

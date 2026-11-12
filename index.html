@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#1d6b57">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Caixa">
+<meta name="apple-mobile-web-app-title" content="Caixinha">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
@@ -506,14 +506,17 @@ async function conectar(){
     CONN={url,chave,quem};ls.set(CONN_KEY,CONN);S.authErr=null;S.connDraft=null;toast('Conectado como '+quem);render();carregar(true);flush();
   }catch(e){btn.disabled=false;btn.textContent='Conectar';toast('Não consegui falar com o servidor. Confira o endereço e a internet.')}
 }
+function vozUrl(params){const q=new URLSearchParams(Object.assign({},params,{t:S.vozToken}));return CONN.url+(CONN.url.includes('?')?'&':'?')+q.toString()}
 function siriLinks(){
   if(!CONN)return'';
-  const base=apiUrl({acao:'lancar',quem:CONN.quem||''});
-  const lim=apiUrl({acao:'limite'});
-  return '<section class="card"><h3>Atalhos da Siri</h3><p class="tip">Copie cada link e cole no app Atalhos, como explica o passo a passo. Os links levam a chave da família: não compartilhe.</p>'+
-  '<div class="rows">'+
-  '<div class="row"><div class="grow"><div class="t">Lançar gasto ou entrada</div><div class="s">Termina em texto=. Depois dele vai o texto ditado.</div></div><button class="btn" data-act="copy" data-v="'+esc(base+'&texto=')+'" type="button">Copiar</button></div>'+
-  '<div class="row"><div class="grow"><div class="t">Quanto posso gastar hoje</div><div class="s">Usado sozinho, sem ditado.</div></div><button class="btn" data-act="copy" data-v="'+esc(lim)+'" type="button">Copiar</button></div>'+
+  if(!S.vozToken&&!S.vozBusy&&!S.vozErr){S.vozBusy=true;apiGet({acao:'tokenvoz'}).then(j=>{if(j.token)S.vozToken=j.token;else S.vozErr=true}).catch(()=>{S.vozErr=true}).then(()=>{S.vozBusy=false;if(tab()==='ajustes')render()})}
+  const head='<section class="card"><h3>Atalhos da Siri</h3>';
+  if(!S.vozToken)return head+'<p class="tip">'+(S.vozErr?'Não consegui gerar os links. Confira se o servidor foi atualizado (Nova versão) e abra esta tela de novo.':'Gerando os links…')+'</p></section>';
+  const row=(t,s,v)=>'<div class="row"><div class="grow"><div class="t">'+t+'</div><div class="s">'+s+'</div></div><button class="btn" data-act="copy" data-v="'+esc(v)+'" type="button">Copiar</button></div>';
+  return head+'<p class="tip">Copie cada link e cole no app Atalhos. Eles usam uma chave só da Siri, que lança gastos e informa o limite, mas não abre o extrato nem apaga nada.</p><div class="rows">'+
+  row('Lançar gasto ou entrada','Termina em texto=. Depois dele vai o texto ditado.',vozUrl({acao:'lancar',quem:CONN.quem||''})+'&texto=')+
+  row('Quanto posso gastar hoje','Resposta curta, só o valor de hoje.',vozUrl({acao:'limite'}))+
+  row('Detalhes do limite','Limite por dia, até quando e quanto já gastou hoje.',vozUrl({acao:'detalhe'}))+
   '</div></section>';
 }
 function copyText(t){

@@ -9,6 +9,7 @@
  * e rode a função instalar() uma vez.
  */
 const CHAVE = 'TROQUE-ESTA-CHAVE';
+// Depois de usada uma vez, a chave fica guardada: nas próximas atualizações pode colar o código sem mexer aqui.
 
 const ABA_DADOS = 'dados';
 const ABA_LANC = 'Lançamentos';
@@ -170,15 +171,17 @@ function testarLimite() {
 function doGet(e) {
   const p = (e && e.parameter) || {};
   const acao = p.acao || '';
-  const voz = acao === 'lancar' || acao === 'limite';
+  const voz = acao === 'lancar' || acao === 'limite' || acao === 'detalhe';
   if (acao === 'ping' && !p.chave) return json_({ ok: true, app: 'Caixa da Família' });
-  const recusa = checarChave_(p.chave);
+  const recusa = voz && p.t ? checarChaveVoz_(p.t) : checarChave_(p.chave);
   if (recusa) return voz ? texto_(recusa) : json_({ erro: 'chave', mensagem: recusa });
   try {
     if (acao === 'ping') return json_({ ok: true, app: 'Caixa da Família' });
     if (acao === 'tudo') return json_({ ok: true, dados: lerTudo_(), agora: new Date().toISOString() });
     if (acao === 'lancar') return texto_(lancarPorTexto_(p.texto || '', p.quem || ''));
     if (acao === 'limite') { carregarEstado_(lerTudo_()); return texto_(textoLimite_()); }
+    if (acao === 'detalhe') { carregarEstado_(lerTudo_()); return texto_(textoDetalhe_()); }
+    if (acao === 'tokenvoz') return json_({ ok: true, token: chaveVoz_() });
     return json_({ erro: 'acao' });
   } catch (err) {
     console.error(err);
@@ -204,13 +207,49 @@ function doPost(e) {
 function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 function texto_(t) { return ContentService.createTextOutput(String(t)).setMimeType(ContentService.MimeType.TEXT); }
 
+/** A chave da família: a da linha 11 ou, se ela estiver com o texto padrão, a última que foi guardada. */
+function chaveEfetiva_() {
+  const props = PropertiesService.getScriptProperties();
+  if (CHAVE !== 'TROQUE-ESTA-CHAVE' && CHAVE.length >= 6) {
+    if (props.getProperty('CHAVE_SALVA') !== CHAVE) props.setProperty('CHAVE_SALVA', CHAVE);
+    return CHAVE;
+  }
+  return props.getProperty('CHAVE_SALVA') || '';
+}
+
+function falhou_(cache, falhas) { cache.put('falhas', String(falhas + 1), 900); }
+
 function checarChave_(c) {
   const cache = CacheService.getScriptCache();
   const falhas = +(cache.get('falhas') || 0);
   if (falhas >= 20) return 'Muitas tentativas com a chave errada. Espere 15 minutos.';
-  if (CHAVE === 'TROQUE-ESTA-CHAVE' || CHAVE.length < 6) return 'A chave da família ainda não foi definida no Apps Script.';
-  if (String(c || '') !== CHAVE) { cache.put('falhas', String(falhas + 1), 900); return 'Chave incorreta.'; }
+  const chave = chaveEfetiva_();
+  if (!chave) return 'A chave da família ainda não foi definida no Apps Script.';
+  if (String(c || '') !== chave) { falhou_(cache, falhas); return 'Chave incorreta.'; }
   return null;
+}
+
+/** Chave só da Siri: lança e informa o limite, mas não lê nem apaga os dados. */
+function chaveVoz_() {
+  const props = PropertiesService.getScriptProperties();
+  let t = props.getProperty('CHAVE_VOZ');
+  if (!t) { t = Utilities.getUuid().replace(/-/g, '').slice(0, 24); props.setProperty('CHAVE_VOZ', t); }
+  return t;
+}
+
+function checarChaveVoz_(t) {
+  const cache = CacheService.getScriptCache();
+  const falhas = +(cache.get('falhas') || 0);
+  if (falhas >= 20) return 'Muitas tentativas com a chave errada. Espere 15 minutos.';
+  if (String(t || '') !== chaveVoz_()) { falhou_(cache, falhas); return 'O atalho está com uma chave antiga. Copie o link de novo no app.'; }
+  return null;
+}
+
+/** Rode pelo editor se um link de atalho vazar: os links antigos param de funcionar. */
+function trocarChaveVoz() {
+  PropertiesService.getScriptProperties().deleteProperty('CHAVE_VOZ');
+  chaveVoz_();
+  Logger.log('Nova chave da Siri criada. No app, em Ajustes, copie os links de novo e atualize os atalhos.');
 }
 
 /* ===== Planilha ===== */
@@ -355,7 +394,13 @@ function lancarPorTexto_(texto, quem) {
 function textoLimite_() {
   if (!S.config) return 'A Caixa ainda não tem dados.';
   const k = computeToday();
+  if (k.restHoje < 0) return 'Hoje você já passou ' + fmt(-k.restHoje) + ' do limite.';
+  return 'Você pode gastar ' + fmt(k.restHoje) + ' hoje.';
+}
+
+function textoDetalhe_() {
+  if (!S.config) return 'A Caixa ainda não tem dados.';
+  const k = computeToday();
   const ate = k.nextInc ? ' até o dia ' + (+k.nextInc.date.slice(8)) + ', quando entra ' + k.nextInc.name.replace(/\s*\([^)]*\)/g, '') : ' até o fim do mês';
-  if (k.restHoje < 0) return 'Hoje o limite já passou ' + fmt(-k.restHoje) + '. O limite é de ' + fmt(k.perDay) + ' por dia' + ate + '.';
-  return 'Hoje você ainda pode gastar ' + fmt(k.restHoje) + '. O limite é de ' + fmt(k.perDay) + ' por dia' + ate + '.';
+  return 'Seu limite é de ' + fmt(k.perDay) + ' por dia' + ate + '. Hoje você já gastou ' + fmt(k.todayFlex) + '.';
 }
