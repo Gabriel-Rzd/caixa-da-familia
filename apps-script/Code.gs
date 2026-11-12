@@ -118,7 +118,7 @@ const QCATS=[
 const QSTOP=new Set(['no','na','nos','nas','de','do','da','dos','das','em','com','o','a','os','as','um','uma','gastei','paguei','comprei','recebi','foi','foram','reais','real','r','centavos','centavo','pix','debito','credito','cartao','dinheiro','especie','hoje','ontem','anteontem','e','pelo','pela','via','entrada','saida','com','virgula']);
 const NUMW={zero:0,um:1,uma:1,dois:2,duas:2,tres:3,quatro:4,cinco:5,seis:6,sete:7,oito:8,nove:9,dez:10,onze:11,doze:12,treze:13,quatorze:14,catorze:14,quinze:15,dezesseis:16,dezessete:17,dezoito:18,dezenove:19,vinte:20,trinta:30,quarenta:40,cinquenta:50,sessenta:60,setenta:70,oitenta:80,noventa:90,cem:100,cento:100,duzentos:200,duzentas:200,trezentos:300,trezentas:300,quatrocentos:400,quatrocentas:400,quinhentos:500,quinhentas:500,seiscentos:600,setecentos:700,oitocentos:800,novecentos:900};
 function numerosPorExtenso(t){
-  t=t.replace(/(\d),(\d)/g,'$1\u0001$2').replace(/[,;:!?]/g,' ').replace(/\u0001/g,',');
+  t=t.replace(/(\d)\s*:\s*(\d)/g,'$1h$2').replace(/(\d),(\d)/g,'$1\u0001$2').replace(/[,;:!?]/g,' ').replace(/\u0001/g,',');
   const w=t.split(/\s+/).filter(Boolean),out=[];const cls=v=>v>=100?3:v>=20?2:1;
   for(let i=0;i<w.length;){
     if(NUMW[w[i]]==null&&w[i]!=='mil'){out.push(w[i]);i++;continue}
@@ -139,7 +139,7 @@ function numerosPorExtenso(t){
 }
 function parseQuick(text){
   const t=numerosPorExtenso(nrm(text));let amount=NaN,m;
-  if((m=t.match(/(\d+)\s*(?:reais?)?\s*(?:e|com|virgula)\s*(\d{1,2})\s*centavos?/))||(m=t.match(/(\d+)\s*reais?\s*(?:e|com)\s*(\d{1,2})(?!\d)/))||(m=t.match(/(\d+)\s*(?:com|virgula)\s*(\d{1,2})(?!\d)/))||(m=t.match(/^\D*?(\d+)\s+e\s+(\d{2})(?!\d)/)))amount=+m[1]+(+m[2])/100;
+  if((m=t.match(/(?:^|\D)(\d{1,4})\s*(?:h|:)\s*(\d{2})(?!\d)/))||(m=t.match(/(\d+)\s*(?:reais?)?\s*(?:e|com|virgula)\s*(\d{1,2})\s*centavos?/))||(m=t.match(/(\d+)\s*reais?\s*(?:e|com)\s*(\d{1,2})(?!\d)/))||(m=t.match(/(\d+)\s*(?:com|virgula)\s*(\d{1,2})(?!\d)/))||(m=t.match(/^\D*?(\d+)\s+e\s+(\d{2})(?!\d)/)))amount=+m[1]+(+m[2])/100;
   else if((m=t.match(/(\d+)\s*centavos?/))&&!/\d\s*(reais|real)\b/.test(t))amount=+m[1]/100;
   else if((m=t.match(/(\d{1,3}(?:\.\d{3})+|\d+)(?:[,.](\d{1,2}))?/)))amount=+(m[1].replace(/\./g,''))+(m[2]?+(m[2].length===1?m[2]+'0':m[2])/100:0);
   const isIn=/\b(recebi|recebido|recebemos|entrada|entrou|ganhei|reembolso|devolveu|devolveram|me pagou|me pagaram|pagou a parte|estorno|vendi|venda|salario|honorarios?|bico)\b/.test(t);
